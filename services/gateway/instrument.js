@@ -12,7 +12,10 @@ Sentry.init({
     Sentry.httpIntegration(),
     Sentry.expressIntegration(),
   ],
-  tracePropagationTargets: ["http://localhost:4001"],
+  // Include both frontend and downstream in trace propagation targets
+  tracePropagationTargets: [
+    "http://localhost:4001", // downstream
+  ],
 });
 
 export default Sentry;

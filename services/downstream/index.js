@@ -9,7 +9,19 @@ const { Pool } = pg;
 
 const PORT = process.env.PORT || 4001;
 
+// Slowdown mode configuration
+const SLOWDOWN_MODE =
+  process.env.SLOWDOWN_MODE === "true" || process.env.SLOWDOWN_MODE === "1";
+
 const app = express();
+
+console.log(`🚀 Downstream service starting...`);
+console.log(`⚡ Slowdown mode: ${SLOWDOWN_MODE ? "ENABLED" : "DISABLED"}`);
+if (SLOWDOWN_MODE) {
+  console.log(
+    `🐌 Slow operations will be simulated for demonstration purposes`
+  );
+}
 
 // Initialize PostgreSQL connection pool
 const pool = new Pool({
@@ -53,52 +65,73 @@ app.get("/health", (_req, res) => {
 });
 
 app.get("/data", async (req, res, next) => {
-  try {
-    console.log("Request received by downstream: ", req.headers);
-    console.log("Downstream sentry-trace:", req.headers["sentry-trace"]);
-    console.log("Downstream baggage:", req.headers["baggage"]);
+  console.log("Request received by downstream: ", req.headers);
 
-    // // Continue the trace from the gateway
-    // return await Sentry.continueTrace(
+  // Generate random data to make each response unique
+  const requestId = Math.random().toString(36).substring(2, 15);
+  const timestamp = new Date().toISOString();
+
+  if (SLOWDOWN_MODE) {
+    console.log("🐌 SLOWDOWN MODE: Simulating performance issues...");
+
+    // Continue the trace from the gateway and create a custom span for the slowdown simulation
+    // await Sentry.continueTrace(
     //   {
     //     sentryTrace: req.headers["sentry-trace"],
     //     baggage: req.headers["baggage"],
     //   },
     //   async () => {
-    //     // Create a span for the database operation within the continued trace
-    //     return await Sentry.startSpan(
+    //     await Sentry.startSpan(
     //       {
-    //         name: "downstream.fetch_widgets",
-    //         op: "db.query",
+    //         name: "simulate_slow_database_connection",
+    //         op: "performance.issue",
+    //         attributes: {
+    //           "performance.issue.type": "slow_database_connection",
+    //           "slowdown.demo_mode": true,
+    //         },
     //       },
-    //       async (span) => {
-    try {
-      const client = await pool.connect();
-      const result = await client.query(
-        "SELECT id, name, price FROM widgets ORDER BY id"
-      );
-      client.release();
+    //       async (slowdownSpan) => {
+    const dbConnectDelay = Math.floor(Math.random() * 2000) + 2000; // 2000-4000ms
 
-      // span.setAttributes({
-      //   "db.operation": "SELECT",
-      //   "db.table": "widgets",
-      //   "db.rows_affected": result.rows.length,
-      //   "db.system": "postgresql",
-      // });
+    // slowdownSpan.setAttributes({
+    //   "slowdown.delay_ms": dbConnectDelay,
+    // });
 
-      res.json({ service: "downstream", rows: result.rows });
-    } catch (err) {
-      span.setStatus({ code: 2, message: err.message }); // ERROR status
-      Sentry.captureException(err);
-      throw err;
-    }
+    console.log(`⏳ Simulating slow DB connection: ${dbConnectDelay}ms`);
+    await new Promise((resolve) => setTimeout(resolve, dbConnectDelay));
     //       }
     //     );
     //   }
     // );
+  }
+
+  try {
+    const client = await pool.connect();
+    const result = await client.query(
+      "SELECT id, name, price FROM widgets ORDER BY id"
+    );
+    client.release();
+
+    // Add randomization to the response data
+    const responseData = {
+      service: "downstream",
+      requestId,
+      timestamp,
+      slowdownMode: SLOWDOWN_MODE,
+      randomValue: Math.floor(Math.random() * 1000),
+      rows: result.rows.map((row) => ({
+        ...row,
+        // Add small random price variation (±0.01 to ±0.99)
+        price: parseFloat(
+          (parseFloat(row.price) + (Math.random() - 0.5) * 2).toFixed(2)
+        ),
+      })),
+    };
+
+    res.json(responseData);
   } catch (err) {
-    //Sentry.captureException(err);
-    next(err);
+    Sentry.captureException(err);
+    throw err;
   }
 });
 

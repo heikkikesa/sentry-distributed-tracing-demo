@@ -6,7 +6,6 @@ import App from "./App";
 const SENTRY_DSN = (import.meta as any).env?.VITE_SENTRY_DSN || "";
 
 if (SENTRY_DSN) {
-  console.log("Initializing Sentry");
   Sentry.init({
     dsn: SENTRY_DSN,
     tracesSampleRate: 1.0,
@@ -20,7 +19,6 @@ if (SENTRY_DSN) {
         traceFetch: true,
       }),
     ],
-    //profilesSampleRate: 1.0,
   });
 }
 
